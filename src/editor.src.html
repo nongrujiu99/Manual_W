@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>说明书编辑器 v3.0.3 · 三栏工作台</title>
+<title>说明书编辑器 v3.0.4 · 三栏工作台</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -414,7 +414,7 @@ header button.ic{font-size:15px;padding:4px 9px;line-height:1}
 </head>
 <body>
 <header>
-  <h1>说明书编辑器<span class="ver">v3.0.3</span></h1>
+  <h1>说明书编辑器<span class="ver">v3.0.4</span></h1>
   <span class="sp"></span>
   <button class="ic" id="btn-undo" onclick="undo()" title="撤销 (Ctrl+Z)" disabled>↶</button>
   <button class="ic" id="btn-redo" onclick="redo()" title="重做 (Ctrl+Shift+Z)" disabled>↷</button>
@@ -439,7 +439,7 @@ header button.ic{font-size:15px;padding:4px 9px;line-height:1}
   <aside class="side">
     <div class="docbar">
       <div class="field"><label>说明书标题</label>
-        <input type="text" id="doc-title" oninput="onTitle()" placeholder="X1 无线耳机使用说明书"></div>
+        <input type="text" id="doc-title" oninput="onTitle()" placeholder="说明书标题"></div>
       <div class="langlist" id="langlist"></div>
       <div class="docbar-foot">
         <button class="btn" onclick="translateDoc()" title="用大模型把当前版本整篇翻成另一种语言，图片与版式原样保留"
@@ -675,7 +675,7 @@ const THEMES = [
   {id:'slate',  nm:'石板灰', c:'#455a64'},
 ];
 let ST = {
-  title:'X1 无线降噪耳机\n使用说明书',
+  title:'',
   langs:['简体中文'], activeLang:0,
   docs:{'简体中文':{raw:'',blocks:[]}},
   theme:'blue', brand:null, density:'cozy', cover:'grad', tpl:'editorial', pvMode:'chap',
@@ -1265,7 +1265,7 @@ ${tocHtml}
 ${body}
 <!--CE--></div>
 <div class="foot"><b>${esc((ST.title||'').split('\n')[0])}</b>
-© ${new Date().getFullYear()} All Rights Reserved</div>
+${(ST.title||'').trim()?'© '+new Date().getFullYear()+' All Rights Reserved':''}</div>
 __SCRIPT_OPEN__
 (function(){
   const send = m => parent.postMessage(Object.assign({__v2:true},m),'*');
@@ -3899,57 +3899,8 @@ function load(){ try{
   if(s){ const o=JSON.parse(s); if(o&&o.docs) ST=Object.assign(ST,o); }
 }catch(e){} }
 load();
-// 首次访问给示例
-if(!curDoc() || !(curDoc().blocks||[]).length){
-  const demo = `【图】https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=900&q=80 | X1 主动降噪无线耳机
-
-【参数】40dB 深度降噪
-【参数】32h 综合续航
-【参数】蓝牙 5.3 快连
-
-# 产品概述
-X1 采用双馈主动降噪与 11mm 液晶高分子振膜单元，人声清澈、低音澎湃。单次续航 8 小时，配合轻巧充电仓总续航长达 32 小时，IPX5 防水无惧汗水与小雨。
-
-# 包装清单
-- 耳机主体 ×1
-- 充电仓 ×1
-- USB-C 充电线 ×1
-- 不同尺寸耳帽 ×3 对
-- 使用说明书 ×1
-
-# 快速上手
-1. 撕开耳机保护膜，放入充电仓
-2. 打开仓盖，长按功能键 3 秒，指示灯蓝白交替闪烁
-3. 打开手机蓝牙，选择 "X1" 完成配对
-4. 佩戴后播放音乐，即可开始体验
-
-【提示】首次连接成功后，开盖即回连上次设备，无需重复操作。
-
-# 操作说明
-1. 播放 / 暂停：短按右耳触控区
-2. 切换下一曲：双击右耳触控区
-3. 接听 / 挂断电话：短按任一耳
-4. 降噪 / 通透模式切换：长按左耳 2 秒
-
-【图】https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=900&q=80 | 触控操作示意图
-
-# 产品规格
-【表】蓝牙版本:5.3; 驱动单元:11mm 动圈; 降噪深度:最高 40dB; 单次续航:约 8 小时; 总续航:约 32 小时; 充电接口:USB-C; 防水等级:IPX5; 单耳重量:4.6g
-
-# 使用场景
-【图集】https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=600&q=70,https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=600&q=70,https://images.unsplash.com/photo-1610438235354-a6ae5528385c?w=600&q=70
-
-# 安全注意事项
-【警告】请勿在雷雨天气充电，避免在高温、潮湿或阳光直射环境中使用与存放产品。
-【提示】长时间使用请将音量控制在 60% 以下，保护听力健康。
-
-# 常见问题
-1. 无法配对？将耳机放回充电仓，长按功能键 10 秒复位后重试。
-2. 单边无声？请用干燥棉签清洁耳机触点，重新放入仓内再取出。
-3. 断连卡顿？请远离微波炉等强干扰源，或缩短与手机的距离。`;
-  curDoc().raw=demo;
-  curDoc().blocks=localParse(demo);
-}
+// 首次访问保持空白：由空态引导去「内容来源」导入文档，
+// 不再自动塞示例内容，分享出去的链接打开就是干净的
 const _hasUI=loadUI();
 if(!_hasUI && !(curDoc().blocks||[]).length){ GRP.src=true; GRP.outline=false; }
 applyUI();
