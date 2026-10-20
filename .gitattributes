@@ -1,0 +1,21 @@
+# 换行符策略：保证「构建产物与源码打包后逐字节一致」这条性质在 git 里也成立
+* text=auto
+
+# Windows 批处理必须 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# macOS/Linux 脚本必须 LF（CRLF 会导致 bad interpreter）
+*.command text eol=lf
+*.sh text eol=lf
+
+# 单文件应用（模板与产物）当前均为 CRLF，锁死避免被 autocrlf 改写
+*.html text eol=crlf
+*.txt text eol=crlf
+
+# Python 保持 LF，跨平台一致
+*.py text eol=lf
+
+# 第三方库保持原始字节，禁止任何换行转换
+# （pdfjs.worker.js 内部是 LF，若被转成 CRLF 会破坏 worker 的字节一致性）
+vendor/** -text
