@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>说明书编辑器 v3.0.4 · 三栏工作台</title>
+<title>说明书编辑器 v3.0.5 · 三栏工作台</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -414,7 +414,7 @@ header button.ic{font-size:15px;padding:4px 9px;line-height:1}
 </head>
 <body>
 <header>
-  <h1>说明书编辑器<span class="ver">v3.0.4</span></h1>
+  <h1>说明书编辑器<span class="ver">v3.0.5</span></h1>
   <span class="sp"></span>
   <button class="ic" id="btn-undo" onclick="undo()" title="撤销 (Ctrl+Z)" disabled>↶</button>
   <button class="ic" id="btn-redo" onclick="redo()" title="重做 (Ctrl+Shift+Z)" disabled>↷</button>
@@ -721,6 +721,35 @@ function localParse(text, opts){
   const numbered = /^\s*(?:\(?\d{1,2}[.、)）]|[①-⑳])\s*/;
   // 「键：值」参数行
   const specRe = /^[^：:]{1,14}[：:]\s*\S/;
+  // 带编号的章标题：这类即使带冒号也是标题，不能被参数行规则吞掉
+  const chapterNo = /^\s*(第\s*[一二三四五六七八九十百零\d]+\s*[章节篇部讲]|chapter\s*\d+|part\s*\d+)/i;
+  // 参数行的键：中文里夹空格的多半是句子（「支持 A」），不当参数
+  const badKey = (k) => !k || k.length > 16 || (/[\u4e00-\u9fa5]/.test(k) && /\s/.test(k));
+  // 「键 | 值 | 值…」—— 与右栏表格编辑「一行一条，用 | 分列」同一口径
+  const pipeCols = (s) => {
+    if (!s || /[。！？；，、]/.test(s)) return null;
+    if (s.indexOf('|') < 0) return null;
+    const p = s.split('|').map(x => x.trim());
+    if (p.length < 2 || p.length > 6 || p.some(x => !x)) return null;
+    if (p[0].length > 14 || badKey(p[0])) return null;
+    return p;
+  };
+  // 「键<2 个以上空格>值」两列 —— PDF 复制出来的参数表最常见形态
+  const spaceCols = (s) => {
+    if (!s || /[。！？；，、]/.test(s)) return null;
+    const m = s.match(/^([^\s].{0,15}?)[ \u3000]{2,}(\S.{0,44})$/);
+    if (!m) return null;
+    const k = m[1].trim(), v = m[2].trim();
+    if (badKey(k)) return null;
+    return [k, v];
+  };
+  // 制表符分隔 —— Word / Excel 粘贴
+  const tabCols = (s) => {
+    if (!s || s.indexOf('\t') < 0) return null;
+    const p = s.split('\t').map(x => x.trim());
+    while (p.length && !p[p.length - 1]) p.pop();
+    return p.length >= 2 ? p : null;
+  };
   // 目录行：「标题 …… 页码」（印刷稿目录常见）
   const tocLine = /^[^\d]{2,30}?[\s.·…]{2,}\d{1,3}\s*$/;
   // 弱标题：本身是标题，但常被误当正文的短句（如「要与此设备配对吗？」）
@@ -730,7 +759,7 @@ function localParse(text, opts){
   const blocks = [];
   let buf = [], specBuf = [], listBuf = [], stepBuf = [], figBuf = [];
   const flushP = () => { if(buf.length){ blocks.push({type:'p', text:buf.join('\n')}); buf=[]; } };
-  const flushSpec = () => { if(specBuf.length){ blocks.push({type:'table', rows:specBuf.map(s=>{const i=s.search(/[：:]/);return [s.slice(0,i).trim(), s.slice(i+1).trim()];})}); specBuf=[]; } };
+  const flushSpec = () => { if(specBuf.length){ blocks.push({type:'table', rows:specBuf.slice()}); specBuf=[]; } };
   const flushList = () => { if(listBuf.length){ blocks.push({type:'list', items:listBuf.slice()}); listBuf=[]; } };
   const flushStep = () => { if(stepBuf.length){ blocks.push({type:'steps', items:stepBuf.slice()}); stepBuf=[]; } };
   const flushFig = () => { if(figBuf.length){ blocks.push(figBuf.length===1?{type:'fig',...figBuf[0]}:{type:'figs',items:figBuf.slice()}); figBuf=[]; } };
@@ -762,6 +791,8 @@ function localParse(text, opts){
   };
   const isHeading = (l) => {
     if (opts && opts.strictHeading) return false;             // 严格模式：只认显式 # 标记
+    // 参数行先排除：否则「续航：8h」这类带关键词的行会被长度分支误判成章节标题
+    if (!chapterNo.test(l) && (specRe.test(l) || pipeCols(l) || tabCols(l))) return false;
     if (/^[\d\s]+$/.test(l)) return false;                  // 纯数字
     if (/\S\s{2,}\S/.test(l)) return false;                 // 多列残行（表格/图注）
     if (/^[-—–>]/.test(l)) return false;
@@ -777,9 +808,8 @@ function localParse(text, opts){
     if (l.length > shortTh) {
       return l.length<=28 && kw && !/[，,。；;]/.test(l);
     }
-    if (specRe.test(l)) return false;                // 「续航：32h」是参数
     if (/[?？！!]$/.test(l) && l.length>10) return false;   // 问句/感叹句多为正文
-    if (/^[^：:]{2,6}[：:]/.test(l)) return false;    // 「注意：…」是提示语不是标题
+    if (/^[^：:]{2,6}[：:]/.test(l) && !chapterNo.test(l)) return false;   // 「注意：…」是提示语不是标题
     if (/^(使用|请|将|把|在|如需|如果|如|若|当|为|从|点击|选择|打开|关闭|长按|短按)/.test(core)) return false;
     // 带关键词的短行才是标题（避免整句被吃成章节）
     if (kw && core.length <= 12 && !/[×*]\s*\d/.test(core)) return true;
@@ -805,6 +835,12 @@ function localParse(text, opts){
     if (/^#\s/.test(l)) { flushAll(); blocks.push({type:'h1',text:l.replace(/^#\s+/,'')}); continue; }
     if (/^##\s/.test(l)) { flushAll(); blocks.push({type:'h2',text:l.replace(/^##+\s+/,'')}); continue; }
 
+    /* 多列参数行要先于「①②」编号判断：表格里常带 ①/1/A 编号列 */
+    const tcols0 = tabCols(l);
+    if (tcols0) { flushP(); flushStep(); flushList(); specBuf.push(tcols0); continue; }
+    const pcols0 = pipeCols(l);
+    if (pcols0) { flushP(); flushStep(); flushList(); specBuf.push(pcols0); continue; }
+
     // 显式列表 / 步骤优先（避免被标题规则吃掉）
     if (numbered.test(l)) { flushP(); flushSpec(); flushList(); stepBuf.push(l.replace(numbered,'')); continue; }
     if (bullet.test(l))   { flushP(); flushSpec(); flushStep(); listBuf.push(l.replace(bullet,'')); continue; }
@@ -815,7 +851,18 @@ function localParse(text, opts){
     if (/^(提示|小贴士|备注|注[:：]?|tip|note)/i.test(l) && l.length<70) { flushAll(); blocks.push({type:'tip',text:l.replace(/^[^：:]*[：:]?\s*/,'')}); continue; }
     // 「步骤N：…」是操作步骤不是参数表
     if (/^(步骤\s*\d|第[一二三四五六七八九十\d]+步|step\s*\d)/i.test(l)) { flushAll(); flushList(); stepBuf.push(l.replace(/^(步骤\s*\d[：:]?\s*|第[一二三四五六七八九十\d]+步[：:]?\s*)/i,'')); continue; }
-    if (specRe.test(l) && l.length<44) { flushP(); flushStep(); flushList(); specBuf.push(l.replace(/[：:]\s*/,'：')); continue; }
+    /* ---- 参数表：冒号 / 空格对齐（制表符与竖线已在上方处理） ---- */
+    if (specRe.test(l) && l.length<44 && !chapterNo.test(l)) {
+      flushP(); flushStep(); flushList();
+      const i0 = l.search(/[：:]/);
+      specBuf.push([l.slice(0,i0).trim(), l.slice(i0+1).trim()]);
+      continue;
+    }
+    // 空格对齐：单行不足以判定（容易误伤正文），要求下一行也是同形态或已在参数块里
+    const scols = spaceCols(l);
+    if (scols && (specBuf.length || spaceCols((lines[i+1]||'').trim()))) {
+      flushP(); flushStep(); flushList(); specBuf.push(scols); continue;
+    }
     flushSpec(); flushStep(); flushList();
     if (buf.length && /[。！？：;；.!?:…—]$/.test(buf[buf.length-1])) { flushP(); }
     buf.push(l);
@@ -831,7 +878,9 @@ function localParse(text, opts){
       if (b.type !== 'p'){ OUT.push(b); continue; }
       const raw = String(b.text||'').split('\n').map(x=>x.trim()).filter(Boolean);
       const short = raw.filter(x=>x.length<=32 && !/[。；;！!]$/.test(x));
-      if (raw.length >= 2 && short.length === raw.length){
+      // 两列/多列参数行（制表符、竖线、空格对齐）不是操作步骤
+      const looksSpec = raw.some(x=> !!tabCols(x) || !!pipeCols(x) || !!spaceCols(x));
+      if (!looksSpec && raw.length >= 2 && short.length === raw.length){
         OUT.push({ type:'steps', items: raw, title:'' });
       } else OUT.push(b);
     }
